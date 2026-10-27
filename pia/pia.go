@@ -173,7 +173,6 @@ func (p *PIAClient) AddKey(token, publickey string) (AddKeyResult, error) {
 	if err != nil {
 		return addKeyResp, errors.Wrap(err, "error decoding add key response")
 	}
-
 	p.selectedServerName = server.Cn
 
 	return addKeyResp, nil
@@ -234,8 +233,8 @@ func (p *PIAClient) generateWireguardServerList(list piaServerList) ServerList {
 	return servers
 }
 
-func (p *PIAClient) executePIARequest(server Server, url, token string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
+func (p *PIAClient) executePIARequest(server Server, requestURL, token string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", requestURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -297,6 +296,11 @@ func (p *PIAClient) executePIARequest(server Server, url, token string) (*http.R
 
 	resp, err := client.Do(req)
 	if err != nil {
+		// HTTP errors include addKey's token-bearing URL; log only the cause.
+		var urlError *url.Error
+		if errors.As(err, &urlError) {
+			err = urlError.Err
+		}
 		return nil, err
 	}
 
