@@ -26,6 +26,7 @@ func main() {
 		},
 
 		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "server-name-file", Usage: "Write the selected PIA TLS server name for Gluetun port forwarding"},
 			&cli.StringFlag{
 				Name:    "outfile",
 				Aliases: []string{"o"},
@@ -142,6 +143,11 @@ func defaultAction(c *cli.Context) error {
 	} else {
 		// print config to stdout
 		fmt.Println(config)
+	}
+	if nameFile := c.String("server-name-file"); nameFile != "" {
+		if err := os.WriteFile(nameFile, []byte(piaClient.SelectedServerName()+"\n"), 0600); err != nil {
+			return fmt.Errorf("failed to write server name: %w", err)
+		}
 	}
 
 	return nil

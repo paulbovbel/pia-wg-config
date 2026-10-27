@@ -28,13 +28,18 @@ type Region string
 type ServerList map[Region][]Server
 
 type PIAClient struct {
-	region           string
-	wireguardServers ServerList
-	username         string
-	password         string
-	verbose          bool
-	caCert           []byte
+	region             string
+	wireguardServers   ServerList
+	username           string
+	password           string
+	verbose            bool
+	caCert             []byte
+	selectedServerName string
 }
+
+// SelectedServerName is the TLS name of the server whose key registration
+// succeeded. Gluetun needs this exact name for PIA port forwarding.
+func (p *PIAClient) SelectedServerName() string { return p.selectedServerName }
 
 type piaServerList struct {
 	Regions []struct {
@@ -168,6 +173,8 @@ func (p *PIAClient) AddKey(token, publickey string) (AddKeyResult, error) {
 	if err != nil {
 		return addKeyResp, errors.Wrap(err, "error decoding add key response")
 	}
+
+	p.selectedServerName = server.Cn
 
 	return addKeyResp, nil
 }
