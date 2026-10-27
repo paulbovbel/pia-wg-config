@@ -316,7 +316,7 @@ func (p *PIAClient) downloadPIACertificate() error {
 	}
 
 	// Download certificate
-	resp, err := http.Get("https://raw.githubusercontent.com/pia-foss/desktop/master/daemon/res/ca/rsa_4096.crt")
+	resp, err := http.Get("https://raw.githubusercontent.com/pia-foss/manual-connections/645377e87238a52596c004f760d238e3faea68d1/ca.rsa.4096.crt")
 	if err != nil {
 		return err
 	}

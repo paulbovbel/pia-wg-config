@@ -33,6 +33,7 @@ type templateConfig struct {
 	PrivateKey          string
 	PublicKey           string
 	PersistentKeepalive string
+	Port                int
 }
 
 func NewPIAWgGenerator(pia PIAWgClient, config PIAWgGeneratorConfig) *PIAWgGenerator {
@@ -123,6 +124,7 @@ func (p *PIAWgGenerator) generateConfig(key AddKeyResult, privatekey string) (st
 		PrivateKey:          privatekey,
 		PublicKey:           key.ServerKey,
 		Endpoint:            key.ServerIP,
+		Port:                key.ServerPort,
 		DNS:                 key.DNSServers[0],
 		Address:             key.PeerIP,
 		AllowedIPs:          "0.0.0.0/0",
@@ -145,5 +147,5 @@ DNS = {{.DNS}}
 [Peer]
 PublicKey = {{.PublicKey}}
 AllowedIPs = {{.AllowedIPs}}
-Endpoint = {{.Endpoint}}:1337
+Endpoint = {{.Endpoint}}:{{.Port}}
 PersistentKeepalive = {{.PersistentKeepalive}}`

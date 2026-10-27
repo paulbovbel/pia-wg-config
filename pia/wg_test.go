@@ -13,6 +13,7 @@ func (p *PIAClientMock) GetToken() (string, error) {
 func (p *PIAClientMock) AddKey(token, publickey string) (AddKeyResult, error) {
 	return AddKeyResult{
 		ServerIP:   "1.2.3.4",
+		ServerPort: 51820,
 		DNSServers: []string{"1.1.1.1"},
 		PeerIP:     "4.5.6.7",
 		ServerKey:  publickey,
@@ -50,7 +51,7 @@ DNS = 1.1.1.1
 [Peer]
 PublicKey = test_publickey
 AllowedIPs = 0.0.0.0/0
-Endpoint = 1.2.3.4:1337
+Endpoint = 1.2.3.4:51820
 PersistentKeepalive = 25`,
 			wantErr: false,
 		},
