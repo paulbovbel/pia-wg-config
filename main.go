@@ -51,13 +51,24 @@ func main() {
 	}
 }
 
+// Environment credentials take precedence; never expand them into argv.
+func credentials(c *cli.Context) (string, string) {
+	username, hasUsername := os.LookupEnv("PIA_USERNAME")
+	password, hasPassword := os.LookupEnv("PIA_PASSWORD")
+	if hasUsername || hasPassword {
+		return username, password
+	}
+	return c.Args().Get(0), c.Args().Get(1)
+}
+
 func defaultAction(c *cli.Context) error {
+	username, password := credentials(c)
 	// Validate arguments
-	if c.NArg() < 2 {
+	if username == "" || password == "" {
 		fmt.Println("Error: Username and password are required")
 		fmt.Println()
 		fmt.Println("Usage:")
-		fmt.Println("  pia-wg-config [OPTIONS] USERNAME PASSWORD")
+		fmt.Println("  pia-wg-config [OPTIONS] USERNAME PASSWORD (or set PIA_USERNAME and PIA_PASSWORD)")
 		fmt.Println()
 		fmt.Println("Examples:")
 		fmt.Println("  pia-wg-config myuser mypass")
@@ -70,14 +81,8 @@ func defaultAction(c *cli.Context) error {
 	}
 
 	// get username and password
-	username := c.Args().Get(0)
-	password := c.Args().Get(1)
 	verbose := c.Bool("verbose")
 	region := c.String("region")
-
-	if username == "" || password == "" {
-		return cli.Exit("Error: Username and password cannot be empty", 1)
-	}
 
 	// create pia client
 	if verbose {
