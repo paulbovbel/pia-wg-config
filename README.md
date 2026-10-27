@@ -216,6 +216,24 @@ go test ./...
 
 ## 🔐 Security
 
+For automation, supply `PIA_USERNAME` and `PIA_PASSWORD` in the process environment
+(e.g. from a secret-manager-provided systemd `EnvironmentFile`). They take precedence
+over positional credentials; both must be nonempty. Do not expand them into command
+arguments or place plaintext credentials in unit definitions. Environment variables
+remain readable by privileged users.
+
+```bash
+# PIA_USERNAME and PIA_PASSWORD are already supplied by the service manager.
+pia-wg-config -r ca_toronto -o /run/pia-wireguard/wg0.conf \
+  --server-name-file /run/pia-wireguard/server-name
+```
+
+`--server-name-file` writes the selected server's TLS name for Gluetun's
+`SERVER_NAMES` setting. Use a private runtime directory and generate both outputs
+before starting Gluetun. The PIA CA download is pinned to an upstream commit, and
+the config uses PIA's returned server port. Verbose mode never logs private keys.
+Without `-o`, stdout contains the private config: do not send it to logs.
+
 - This tool connects directly to PIA's official API endpoints
 - Your credentials are only used for authentication and are not stored
 - Generated configs contain your unique keys - keep them secure

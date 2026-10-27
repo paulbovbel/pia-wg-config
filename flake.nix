@@ -1,5 +1,5 @@
 {
-  description = "pia-wg-config dev shell";
+  description = "pia-wg-config package and dev shell";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
@@ -8,6 +8,22 @@
       systems = [ "aarch64-darwin" "x86_64-darwin" "x86_64-linux" "aarch64-linux" ];
       forAll = f: nixpkgs.lib.genAttrs systems (s: f nixpkgs.legacyPackages.${s});
     in {
+      packages = forAll (pkgs: rec {
+        pia-wg-config = pkgs.buildGo127Module {
+          pname = "pia-wg-config";
+          version = "unstable";
+          src = self;
+          vendorHash = "sha256-xdQA62mkMVK6PGocTQ3ZD1AzETn1lAhjS/jFvLzGIQA=";
+          ldflags = [ "-s" "-w" ];
+          meta = {
+            description = "WireGuard configuration generator for Private Internet Access";
+            homepage = "https://github.com/paulbovbel/pia-wg-config";
+            license = pkgs.lib.licenses.mit;
+            mainProgram = "pia-wg-config";
+          };
+        };
+        default = pia-wg-config;
+      });
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
           packages = [ pkgs.go_1_27 pkgs.gopls pkgs.golangci-lint ];
