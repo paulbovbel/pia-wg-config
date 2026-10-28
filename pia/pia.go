@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -35,11 +36,27 @@ type PIAClient struct {
 	verbose            bool
 	caCert             []byte
 	selectedServerName string
+	selectedServerVip  string
+	portForwardRegions map[Region]bool
 }
 
 // SelectedServerName is the TLS name of the server whose key registration
 // succeeded. Gluetun needs this exact name for PIA port forwarding.
 func (p *PIAClient) SelectedServerName() string { return p.selectedServerName }
+
+// SelectedServerVip is the in-tunnel address of the server that accepted the
+// key. PIA's port forwarding API listens there, and it is not derivable from
+// the peer address, so a consumer that does not know it has to guess.
+func (p *PIAClient) SelectedServerVip() string { return p.selectedServerVip }
+
+// RequirePortForwarding reports whether the configured region offers PIA port
+// forwarding, so an unusable region fails before any key is registered.
+func (p *PIAClient) RequirePortForwarding() error {
+	if !p.portForwardRegions[Region(p.region)] {
+		return fmt.Errorf("region %q does not offer port forwarding", p.region)
+	}
+	return nil
+}
 
 type piaServerList struct {
 	Regions []struct {
@@ -154,39 +171,79 @@ func (p *PIAClient) GetAvailableRegions() (map[Region]string, error) {
 	return regions, nil
 }
 
-// AddKey
+// AddKey registers publickey with a WireGuard server in the configured region.
+// A region lists several servers and any one of them may refuse the key or be
+// missing the port forwarding service, so try them until one accepts.
 func (p *PIAClient) AddKey(token, publickey string) (AddKeyResult, error) {
+	servers, err := p.wireguardServersForRegion()
+	if err != nil {
+		return AddKeyResult{}, err
+	}
+
+	failures := make([]string, 0, len(servers))
+	for _, server := range servers {
+		result, err := p.addKeyToServer(server, token, publickey)
+		if err == nil {
+			p.selectedServerName = server.Cn
+			p.selectedServerVip = result.ServerVip
+			return result, nil
+		}
+		if p.verbose {
+			log.Printf("Server %s did not accept the key: %v", server.Cn, err)
+		}
+		failures = append(failures, fmt.Sprintf("%s: %v", server.Cn, err))
+	}
+
+	return AddKeyResult{}, fmt.Errorf("no WireGuard server in region %q accepted the key: %s",
+		p.region, strings.Join(failures, "; "))
+}
+
+func (p *PIAClient) addKeyToServer(server Server, token, publickey string) (AddKeyResult, error) {
 	var addKeyResp AddKeyResult
-	server := p.getWireguardServerForRegion()
 
 	// Build http request
-	url := fmt.Sprintf("https://%v:1337/addKey?pt=%v&pubkey=%v", server.Cn, url.QueryEscape(token), url.QueryEscape(publickey))
+	requestURL := fmt.Sprintf("https://%v:1337/addKey?pt=%v&pubkey=%v", server.Cn, url.QueryEscape(token), url.QueryEscape(publickey))
 
 	// Send request
-	resp, err := p.executePIARequest(server, url, token)
+	resp, err := p.executePIARequest(server, requestURL, token)
 	if err != nil {
 		return addKeyResp, errors.Wrap(err, "error executing request")
 	}
+	defer resp.Body.Close()
 
 	// Parse response
-	err = json.NewDecoder(resp.Body).Decode(&addKeyResp)
+	err = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&addKeyResp)
 	if err != nil {
 		return addKeyResp, errors.Wrap(err, "error decoding add key response")
 	}
-	p.selectedServerName = server.Cn
+
+	// PIA reports refusal in the body rather than the status code.
+	if !strings.EqualFold(addKeyResp.Status, "OK") {
+		return AddKeyResult{}, fmt.Errorf("status %q", addKeyResp.Status)
+	}
 
 	return addKeyResp, nil
 }
 
-func (p *PIAClient) getWireguardServerForRegion() Server {
+// wireguardServersForRegion returns the region's WireGuard servers in a random
+// order. PIA lists them deterministically, so always taking the first pins
+// every registration to one server, including while that server is broken.
+func (p *PIAClient) wireguardServersForRegion() ([]Server, error) {
 	if p.verbose {
-		log.Print("Getting wireguard server for region: ", p.region)
+		log.Print("Getting wireguard servers for region: ", p.region)
 	}
 	servers := p.wireguardServers[Region(p.region)]
 	if len(servers) == 0 {
-		log.Fatalf("No Wireguard servers available for region: %s", p.region)
+		return nil, fmt.Errorf("no WireGuard servers available for region %q", p.region)
 	}
-	return servers[0]
+
+	shuffled := make([]Server, len(servers))
+	copy(shuffled, servers)
+	rand.Shuffle(len(shuffled), func(i, j int) {
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	})
+
+	return shuffled, nil
 }
 
 // getSeverList returns a list of servers from the PIA API
@@ -220,8 +277,10 @@ func (p *PIAClient) getServerList() (piaServerList, error) {
 // generateWireguardServerList
 func (p *PIAClient) generateWireguardServerList(list piaServerList) ServerList {
 	servers := ServerList{}
+	p.portForwardRegions = make(map[Region]bool, len(list.Regions))
 
 	for _, r := range list.Regions {
+		p.portForwardRegions[Region(r.ID)] = r.PortForward
 		for _, server := range r.Servers.Wg {
 			servers[Region(r.ID)] = append(servers[Region(r.ID)], Server{
 				Cn: server.Cn,
@@ -306,6 +365,7 @@ func (p *PIAClient) executePIARequest(server Server, requestURL, token string) (
 
 	// Return error if status code is not 200
 	if resp.StatusCode != 200 {
+		resp.Body.Close()
 		return nil, fmt.Errorf("status code %v", resp.StatusCode)
 	}
 

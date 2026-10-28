@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--gateway-file` flag writing the selected server's `server_vip`, the in-tunnel
+  address of PIA's port forwarding API
+- `-p, --port-forwarding` flag refusing regions that do not offer port forwarding
+- `SelectedServerVip()` and `RequirePortForwarding()` on the PIA client
 - `regions` command to list all available PIA regions
 - Enhanced CLI help text to emphasize region configurability
 - `GetAvailableRegions()` method to PIA client
@@ -23,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better error messages and help text
 
 ### Fixed
+- Registration no longer always picks the region's first server. PIA orders the
+  list deterministically, so a server that refuses keys or lacks the port
+  forwarding service used to break every attempt until PIA reshuffled; the
+  region's servers are now tried in a random order until one accepts.
+- `addKey` now checks the `status` field, which PIA uses to report refusal
+  instead of an HTTP status code, rather than accepting the response regardless
+- An empty region returns an error instead of calling `log.Fatalf`
+- `addKey` and non-200 PIA responses no longer leak the response body
 - Clarified that regions are NOT hardcoded but configurable via CLI flags
 
 ## [Previous Versions]
