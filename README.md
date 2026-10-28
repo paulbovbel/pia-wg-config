@@ -92,8 +92,35 @@ pia-wg-config [OPTIONS] USERNAME PASSWORD
 **Options:**
 - `-r, --region` - Region to connect to (default: "us_california")
 - `-o, --outfile` - Output file for the config (default: stdout)
+- `-p, --port-forwarding` - Fail unless the region offers port forwarding
+- `--server-name-file` - Write the selected server's TLS name (see Port forwarding)
+- `--gateway-file` - Write the selected server's in-tunnel address (see Port forwarding)
 - `-v, --verbose` - Enable verbose output
 - `-h, --help` - Show help
+
+### Port forwarding
+
+PIA lists several WireGuard servers per region, and a given server may refuse a
+key or be missing the port forwarding service entirely. Registration tries the
+region's servers in a random order until one accepts, so a broken server no
+longer blocks every attempt. Pass `-p` to refuse regions that do not offer
+forwarding at all.
+
+Two files help a downstream client such as [Gluetun](https://github.com/qdm12/gluetun)
+reach PIA's forwarding API, which listens on port 19999 inside the tunnel:
+
+- `--server-name-file` holds the TLS name of the server that accepted the key,
+  which the API's certificate is issued for.
+- `--gateway-file` holds that server's in-tunnel address (`server_vip`). It is
+  not derivable from the peer address, so a client that does not know it has to
+  guess, and a wrong guess looks like an unreachable API.
+
+```bash
+pia-wg-config -r ca_toronto -p \
+  -o wg0.conf \
+  --server-name-file server-name \
+  --gateway-file gateway
+```
 
 ### Subcommands
 

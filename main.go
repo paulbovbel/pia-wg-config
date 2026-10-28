@@ -27,6 +27,13 @@ func main() {
 
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "server-name-file", Usage: "Write the selected PIA TLS server name for Gluetun port forwarding"},
+			&cli.StringFlag{Name: "gateway-file", Usage: "Write the selected server's in-tunnel address, where PIA's port forwarding API listens"},
+			&cli.BoolFlag{
+				Name:    "port-forwarding",
+				Aliases: []string{"p"},
+				Value:   false,
+				Usage:   "Fail unless the region offers port forwarding",
+			},
 			&cli.StringFlag{
 				Name:    "outfile",
 				Aliases: []string{"o"},
@@ -104,6 +111,12 @@ func defaultAction(c *cli.Context) error {
 		return cli.Exit("", 1)
 	}
 
+	if c.Bool("port-forwarding") {
+		if err := piaClient.RequirePortForwarding(); err != nil {
+			return cli.Exit(fmt.Sprintf("Error: %v", err), 1)
+		}
+	}
+
 	// create wg config generator
 	if verbose {
 		log.Print("creating wg config generator")
@@ -147,6 +160,11 @@ func defaultAction(c *cli.Context) error {
 	if nameFile := c.String("server-name-file"); nameFile != "" {
 		if err := os.WriteFile(nameFile, []byte(piaClient.SelectedServerName()+"\n"), 0600); err != nil {
 			return fmt.Errorf("failed to write server name: %w", err)
+		}
+	}
+	if gatewayFile := c.String("gateway-file"); gatewayFile != "" {
+		if err := os.WriteFile(gatewayFile, []byte(piaClient.SelectedServerVip()+"\n"), 0600); err != nil {
+			return fmt.Errorf("failed to write gateway address: %w", err)
 		}
 	}
 
